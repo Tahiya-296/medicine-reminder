@@ -1,24 +1,34 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-    <title>Medicine Reminder - Dashboard</title>
+
+    <title>Medicine Reminder Dashboard</title>
+
     <link rel="stylesheet" href="/style.css">
+
 </head>
+
 <body>
 
 <div class="container">
 
-    <h1>Medicine Reminder</h1>
-    <h2>Dashboard</h2>
+    <h1>💊 Medicine Reminder</h1>
+
+    <h2>Manage Your Medicines</h2>
 
     <form action="/addMedicine" method="POST">
+
+        <label>Medicine Name</label>
 
         <input
             type="text"
             name="medicineName"
-            placeholder="Medicine Name"
+            placeholder="Enter medicine name"
             required
         >
+
+        <label>Reminder Time</label>
 
         <input
             type="time"
@@ -27,7 +37,7 @@
         >
 
         <button type="submit">
-            Add Medicine
+            + Add Medicine
         </button>
 
     </form>
@@ -36,19 +46,23 @@
 
     <h3>Your Medicines</h3>
 
-    <ul id="medicineList">
+    <div id="medicineList">
 
-    </ul>
+    </div>
 
-    <button onclick="window.location.href='/login'">
+    <button
+        class="logout-btn"
+        onclick="window.location.href='/login'">
+
         Logout
+
     </button>
 
 </div>
 
 <script>
 
-async function loadMedicines() {
+async function loadMedicines(){
 
     const response = await fetch("/getMedicines");
 
@@ -58,37 +72,86 @@ async function loadMedicines() {
 
     list.innerHTML = "";
 
-    medicines.forEach((medicine) => {
+    medicines.forEach((medicine)=>{
 
-    let time = medicine.medicineTime;
+        let time = medicine.medicineTime;
 
-    let [hour, minute] = time.split(":");
+        let [hour,minute] = time.split(":");
 
-    hour = parseInt(hour);
+        hour = parseInt(hour);
 
-    let period = "AM";
+        let period = "AM";
 
-    if (hour >= 12) {
-        period = "PM";
+        if(hour >= 12){
+
+            period = "PM";
+
+        }
+
+        if(hour > 12){
+
+            hour -= 12;
+
+        }
+
+        if(hour === 0){
+
+            hour = 12;
+
+        }
+
+        const formattedTime = `${hour}:${minute} ${period}`;
+
+        list.innerHTML += `
+
+        <div class="medicine-card">
+
+            <div class="medicine-info">
+
+                <h4>💊 ${medicine.medicineName}</h4>
+
+                <p>🕒 ${formattedTime}</p>
+
+            </div>
+
+            <div class="action-buttons">
+
+                <button
+                    class="edit-btn">
+
+                    Edit
+
+                </button>
+
+                <button
+                    class="delete-btn"
+                    onclick="deleteMedicine('${medicine._id}')">
+
+                    Delete
+
+                </button>
+
+            </div>
+
+        </div>
+
+        `;
+
+    });
+
+}
+
+async function deleteMedicine(id){
+
+    if(!confirm("Delete this medicine?")){
+        return;
     }
 
-    if (hour > 12) {
-        hour = hour - 12;
-    }
+    await fetch("/deleteMedicine/" + id,{
+        method:"DELETE"
+    });
 
-    if (hour === 0) {
-        hour = 12;
-    }
-
-    let formattedTime = `${hour}:${minute} ${period}`;
-
-    list.innerHTML += `
-        <li>
-            <strong>${medicine.medicineName}</strong> - ${formattedTime}
-        </li>
-    `;
-
-});
+    loadMedicines();
 
 }
 
@@ -97,4 +160,5 @@ loadMedicines();
 </script>
 
 </body>
+
 </html>

@@ -9,25 +9,24 @@ const app = express();
 
 // Middleware
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 app.use(express.static("public"));
 app.use(express.static(path.join(__dirname, "views")));
 
-// Home Page
+// ================= PAGES =================
+
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "views", "register.html"));
 });
 
-// Register Page
 app.get("/register", (req, res) => {
     res.sendFile(path.join(__dirname, "views", "register.html"));
 });
 
-// Login Page
 app.get("/login", (req, res) => {
     res.sendFile(path.join(__dirname, "views", "login.html"));
 });
 
-// Dashboard Page
 app.get("/dashboard", (req, res) => {
     res.sendFile(path.join(__dirname, "views", "dashboard.html"));
 });
@@ -103,10 +102,7 @@ app.post("/addMedicine", async (req, res) => {
 
         await medicine.save();
 
-        res.send(`
-            <h2>Medicine Added Successfully!</h2>
-            <a href="/dashboard">Back to Dashboard</a>
-        `);
+        res.redirect("/dashboard");
 
     } catch (error) {
 
@@ -136,9 +132,30 @@ app.get("/getMedicines", async (req, res) => {
 
 });
 
+// ================= DELETE MEDICINE =================
+
+app.delete("/deleteMedicine/:id", async (req, res) => {
+
+    try {
+
+        await Medicine.findByIdAndDelete(req.params.id);
+
+        res.send("Medicine Deleted");
+
+    } catch (error) {
+
+        console.log(error);
+
+        res.status(500).send("Delete Failed");
+
+    }
+
+});
+
 // ================= MongoDB =================
 
 mongoose.connect("mongodb+srv://tahiyametro_db_user:pOpwmr1JFhXoWCBU@medicinereminder.so5zr2o.mongodb.net/medicineReminder?appName=MedicineReminder")
+
 .then(() => {
 
     console.log("MongoDB connected");
@@ -150,6 +167,7 @@ mongoose.connect("mongodb+srv://tahiyametro_db_user:pOpwmr1JFhXoWCBU@medicinerem
     });
 
 })
+
 .catch((error) => {
 
     console.log(error);

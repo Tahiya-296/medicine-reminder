@@ -11,21 +11,90 @@
     <h1>Medicine Reminder</h1>
     <h2>Dashboard</h2>
 
-    <p><strong>Welcome!</strong> You have successfully logged in.</p>
+    <form action="/addMedicine" method="POST">
+
+        <input
+            type="text"
+            name="medicineName"
+            placeholder="Medicine Name"
+            required
+        >
+
+        <input
+            type="time"
+            name="medicineTime"
+            required
+        >
+
+        <button type="submit">
+            Add Medicine
+        </button>
+
+    </form>
 
     <hr>
 
     <h3>Your Medicines</h3>
 
-    <p>No medicines added yet.</p>
+    <ul id="medicineList">
 
-    <br>
+    </ul>
 
     <button onclick="window.location.href='/login'">
         Logout
     </button>
 
 </div>
+
+<script>
+
+async function loadMedicines() {
+
+    const response = await fetch("/getMedicines");
+
+    const medicines = await response.json();
+
+    const list = document.getElementById("medicineList");
+
+    list.innerHTML = "";
+
+    medicines.forEach((medicine) => {
+
+    let time = medicine.medicineTime;
+
+    let [hour, minute] = time.split(":");
+
+    hour = parseInt(hour);
+
+    let period = "AM";
+
+    if (hour >= 12) {
+        period = "PM";
+    }
+
+    if (hour > 12) {
+        hour = hour - 12;
+    }
+
+    if (hour === 0) {
+        hour = 12;
+    }
+
+    let formattedTime = `${hour}:${minute} ${period}`;
+
+    list.innerHTML += `
+        <li>
+            <strong>${medicine.medicineName}</strong> - ${formattedTime}
+        </li>
+    `;
+
+});
+
+}
+
+loadMedicines();
+
+</script>
 
 </body>
 </html>

@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const path = require("path");
 
 const User = require("./models/User");
+const Medicine = require("./models/Medicine");
 
 const app = express();
 
@@ -71,15 +72,11 @@ app.post("/login", async (req, res) => {
         });
 
         if (!user) {
-
             return res.send("User not found.");
-
         }
 
         if (user.password !== req.body.password) {
-
             return res.send("Incorrect password.");
-
         }
 
         res.redirect("/dashboard");
@@ -88,6 +85,52 @@ app.post("/login", async (req, res) => {
 
         console.log(error);
         res.send("Login failed.");
+
+    }
+
+});
+
+// ================= ADD MEDICINE =================
+
+app.post("/addMedicine", async (req, res) => {
+
+    try {
+
+        const medicine = new Medicine({
+            medicineName: req.body.medicineName,
+            medicineTime: req.body.medicineTime
+        });
+
+        await medicine.save();
+
+        res.send(`
+            <h2>Medicine Added Successfully!</h2>
+            <a href="/dashboard">Back to Dashboard</a>
+        `);
+
+    } catch (error) {
+
+        console.log(error);
+        res.send("Failed to add medicine.");
+
+    }
+
+});
+
+// ================= GET ALL MEDICINES =================
+
+app.get("/getMedicines", async (req, res) => {
+
+    try {
+
+        const medicines = await Medicine.find();
+
+        res.json(medicines);
+
+    } catch (error) {
+
+        console.log(error);
+        res.status(500).send("Error loading medicines.");
 
     }
 

@@ -10,18 +10,33 @@
     <h1>Medicine Reminder</h1>
     <h2>Login</h2>
 
-    <form>
-        <input type="email" placeholder="Email" required>
+    <form action="/login" method="POST">
 
-        <input type="password" placeholder="Password" required>
+        <input
+            type="email"
+            name="email"
+            placeholder="Email"
+            required
+        >
 
-        <button type="submit">Login</button>
+        <input
+            type="password"
+            name="password"
+            placeholder="Password"
+            required
+        >
+
+        <button type="submit">
+            Login
+        </button>
+
     </form>
 
     <p>
         Don't have an account?
         <a href="/register">Register</a>
     </p>
+
 </div>
 
 </body>

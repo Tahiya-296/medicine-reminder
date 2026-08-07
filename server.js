@@ -2,34 +2,40 @@ const express = require("express");
 const mongoose = require("mongoose");
 const path = require("path");
 
-const app = express();
+const User = require("./models/User");
 
+const app = express();
 
 // Middleware
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static("public"));
 app.use(express.static(path.join(__dirname, "views")));
 
-
-// Home page
+// Home Page
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "views/register.html"));
+    res.sendFile(path.join(__dirname, "views", "register.html"));
 });
 
+// Register Page
+app.get("/register", (req, res) => {
+    res.sendFile(path.join(__dirname, "views", "register.html"));
+});
 
-// Register route
+// Login Page
+app.get("/login", (req, res) => {
+    res.sendFile(path.join(__dirname, "views", "login.html"));
+});
+
+// Dashboard Page
+app.get("/dashboard", (req, res) => {
+    res.sendFile(path.join(__dirname, "views", "dashboard.html"));
+});
+
+// ================= REGISTER =================
+
 app.post("/register", async (req, res) => {
 
-    console.log("===== REGISTER ROUTE WORKING =====");
-
     try {
-
-        console.log("Register request received");
-        console.log(req.body);
-
-        console.log("MongoDB status:", mongoose.connection.readyState);
-
-        const User = require("./models/User");
 
         const newUser = new User({
             name: req.body.name,
@@ -37,18 +43,12 @@ app.post("/register", async (req, res) => {
             password: req.body.password
         });
 
-        console.log("Before save");
-        console.log("Connection state:", mongoose.connection.readyState);
-        console.log("Database:", mongoose.connection.name);
-
         await newUser.save();
 
-        console.log("User saved successfully");
-
         res.send(`
-        <h2>Registration successful!</h2>
-        <p>You can now login.</p>
-         <a href="/login">Go to Login</a>
+            <h2>Registration Successful!</h2>
+            <p>You can now login.</p>
+            <a href="/login">Go to Login</a>
         `);
 
     } catch (error) {
@@ -60,18 +60,55 @@ app.post("/register", async (req, res) => {
 
 });
 
+// ================= LOGIN =================
 
-// Connect MongoDB
+app.post("/login", async (req, res) => {
+
+    try {
+
+        const user = await User.findOne({
+            email: req.body.email
+        });
+
+        if (!user) {
+
+            return res.send("User not found.");
+
+        }
+
+        if (user.password !== req.body.password) {
+
+            return res.send("Incorrect password.");
+
+        }
+
+        res.redirect("/dashboard");
+
+    } catch (error) {
+
+        console.log(error);
+        res.send("Login failed.");
+
+    }
+
+});
+
+// ================= MongoDB =================
+
 mongoose.connect("mongodb+srv://tahiyametro_db_user:pOpwmr1JFhXoWCBU@medicinereminder.so5zr2o.mongodb.net/medicineReminder?appName=MedicineReminder")
 .then(() => {
 
     console.log("MongoDB connected");
 
     app.listen(3000, () => {
+
         console.log("Server running on port 3000");
+
     });
 
 })
 .catch((error) => {
+
     console.log(error);
+
 });

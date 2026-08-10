@@ -17,7 +17,7 @@
 
     <h2>Manage Your Medicines</h2>
 
-    <form action="/addMedicine" method="POST">
+    <form id="medicineForm">
 
         <label>Medicine Name</label>
 
@@ -36,7 +36,7 @@
             required
         >
 
-        <button type="submit">
+        <button type="submit" id="submitButton">
             + Add Medicine
         </button>
 
@@ -46,9 +46,7 @@
 
     <h3>Your Medicines</h3>
 
-    <div id="medicineList">
-
-    </div>
+    <div id="medicineList"></div>
 
     <button
         class="logout-btn"
@@ -60,9 +58,15 @@
 
 </div>
 
+
 <script>
 
-async function loadMedicines(){
+let editingMedicineId = null;
+
+
+// ================= LOAD MEDICINES =================
+
+async function loadMedicines() {
 
     const response = await fetch("/getMedicines");
 
@@ -72,68 +76,72 @@ async function loadMedicines(){
 
     list.innerHTML = "";
 
-    medicines.forEach((medicine)=>{
+    medicines.forEach((medicine) => {
 
         let time = medicine.medicineTime;
 
-        let [hour,minute] = time.split(":");
+        let [hour, minute] = time.split(":");
 
         hour = parseInt(hour);
 
         let period = "AM";
 
-        if(hour >= 12){
-
+        if (hour >= 12) {
             period = "PM";
-
         }
 
-        if(hour > 12){
-
+        if (hour > 12) {
             hour -= 12;
-
         }
 
-        if(hour === 0){
-
+        if (hour === 0) {
             hour = 12;
-
         }
 
         const formattedTime = `${hour}:${minute} ${period}`;
 
+
         list.innerHTML += `
 
-        <div class="medicine-card">
+            <div class="medicine-card">
 
-            <div class="medicine-info">
+                <div class="medicine-info">
 
-                <h4>💊 ${medicine.medicineName}</h4>
+                    <h4>💊 ${medicine.medicineName}</h4>
 
-                <p>🕒 ${formattedTime}</p>
+                    <p>🕒 ${formattedTime}</p>
+
+                </div>
+
+
+                <div class="action-buttons">
+
+                    <button
+                        type="button"
+                        class="edit-btn"
+                        onclick="editMedicine(
+                            '${medicine._id}',
+                            '${medicine.medicineName}',
+                            '${medicine.medicineTime}'
+                        )">
+
+                        Edit
+
+                    </button>
+
+
+                    <button
+                        type="button"
+                        class="delete-btn"
+                        onclick="deleteMedicine('${medicine._id}')">
+
+                        Delete
+
+                    </button>
+
+                </div>
 
             </div>
-
-            <div class="action-buttons">
-
-                <button
-                    class="edit-btn">
-
-                    Edit
-
-                </button>
-
-                <button
-                    class="delete-btn"
-                    onclick="deleteMedicine('${medicine._id}')">
-
-                    Delete
-
-                </button>
-
-            </div>
-
-        </div>
 
         `;
 
@@ -141,19 +149,141 @@ async function loadMedicines(){
 
 }
 
-async function deleteMedicine(id){
 
-    if(!confirm("Delete this medicine?")){
+// ================= EDIT MEDICINE =================
+
+function editMedicine(id, name, time) {
+
+    editingMedicineId = id;
+
+    document.querySelector('input[name="medicineName"]').value = name;
+
+    document.querySelector('input[name="medicineTime"]').value = time;
+
+    document.getElementById("submitButton").innerText =
+        "Update Medicine";
+
+}
+
+
+// ================= DELETE MEDICINE =================
+
+async function deleteMedicine(id) {
+
+    if (!confirm("Delete this medicine?")) {
         return;
     }
 
-    await fetch("/deleteMedicine/" + id,{
-        method:"DELETE"
+    await fetch("/deleteMedicine/" + id, {
+
+        method: "DELETE"
+
     });
 
     loadMedicines();
 
 }
+
+
+// ================= ADD / UPDATE =================
+
+document.getElementById("medicineForm").addEventListener(
+    "submit",
+    async function(event) {
+
+        event.preventDefault();
+
+        const medicineName =
+            document.querySelector('input[name="medicineName"]').value;
+
+        const medicineTime =
+            document.querySelector('input[name="medicineTime"]').value;
+
+
+        // UPDATE EXISTING MEDICINE
+
+        if (editingMedicineId) {
+
+            const response = await fetch(
+                "/updateMedicine/" + editingMedicineId,
+                {
+                    method: "PUT",
+
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        medicineName: medicineName,
+                        medicineTime: medicineTime
+                    })
+                }
+            );
+
+
+            if (response.ok) {
+
+                alert("Medicine Updated Successfully!");
+
+                editingMedicineId = null;
+
+                document.getElementById("submitButton").innerText =
+                    "+ Add Medicine";
+
+                document.getElementById("medicineForm").reset();
+
+                loadMedicines();
+
+            } else {
+
+                alert("Failed to update medicine.");
+
+            }
+
+        }
+
+
+        // ADD NEW MEDICINE
+
+        else {
+
+            const response = await fetch(
+                "/addMedicine",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/x-www-form-urlencoded"
+                    },
+
+                    body: new URLSearchParams({
+                        medicineName: medicineName,
+                        medicineTime: medicineTime
+                    })
+                }
+            );
+
+
+            if (response.ok) {
+
+                document.getElementById("medicineForm").reset();
+
+                loadMedicines();
+
+            } else {
+
+                alert("Failed to add medicine.");
+
+            }
+
+        }
+
+    }
+);
+
+
+// Load medicines when page opens
 
 loadMedicines();
 

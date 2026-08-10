@@ -145,14 +145,38 @@ app.delete("/deleteMedicine/:id", async (req, res) => {
     } catch (error) {
 
         console.log(error);
-
         res.status(500).send("Delete Failed");
 
     }
 
 });
 
-// ================= MongoDB =================
+// ================= UPDATE MEDICINE =================
+
+app.put("/updateMedicine/:id", async (req, res) => {
+
+    try {
+
+        await Medicine.findByIdAndUpdate(
+            req.params.id,
+            {
+                medicineName: req.body.medicineName,
+                medicineTime: req.body.medicineTime
+            }
+        );
+
+        res.send("Medicine Updated");
+
+    } catch (error) {
+
+        console.log(error);
+        res.status(500).send("Update Failed");
+
+    }
+
+});
+
+// ================= MONGODB =================
 
 mongoose.connect("mongodb+srv://tahiyametro_db_user:pOpwmr1JFhXoWCBU@medicinereminder.so5zr2o.mongodb.net/medicineReminder?appName=MedicineReminder")
 

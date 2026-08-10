@@ -176,6 +176,30 @@ app.put("/updateMedicine/:id", async (req, res) => {
 
 });
 
+// ================= MARK MEDICINE AS TAKEN =================
+
+app.put("/takeMedicine/:id", async (req, res) => {
+
+    try {
+
+        await Medicine.findByIdAndUpdate(
+            req.params.id,
+            {
+                taken: true
+            }
+        );
+
+        res.send("Medicine marked as taken");
+
+    } catch (error) {
+
+        console.log(error);
+        res.status(500).send("Failed to mark medicine as taken");
+
+    }
+
+});
+
 // ================= MONGODB =================
 
 mongoose.connect("mongodb+srv://tahiyametro_db_user:pOpwmr1JFhXoWCBU@medicinereminder.so5zr2o.mongodb.net/medicineReminder?appName=MedicineReminder")

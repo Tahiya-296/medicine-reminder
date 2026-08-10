@@ -7,6 +7,49 @@
 
     <link rel="stylesheet" href="/style.css">
 
+    <style>
+
+        .taken-area {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            margin-right: 10px;
+        }
+
+        .taken-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #888;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .taken-checkbox.checked {
+            background: #22c55e;
+            border-color: #22c55e;
+            color: white;
+        }
+
+        .taken-label {
+            color: #333;
+        }
+
+        .taken-label.checked {
+            color: #16a34a;
+            font-weight: bold;
+        }
+
+    </style>
+
 </head>
 
 <body>
@@ -76,6 +119,7 @@ async function loadMedicines() {
 
     list.innerHTML = "";
 
+
     medicines.forEach((medicine) => {
 
         let time = medicine.medicineTime;
@@ -85,6 +129,7 @@ async function loadMedicines() {
         hour = parseInt(hour);
 
         let period = "AM";
+
 
         if (hour >= 12) {
             period = "PM";
@@ -98,8 +143,59 @@ async function loadMedicines() {
             hour = 12;
         }
 
-        const formattedTime = `${hour}:${minute} ${period}`;
 
+        const formattedTime =
+            `${hour}:${minute} ${period}`;
+
+
+        // ================= TAKEN CHECKBOX =================
+
+        let takenHTML;
+
+
+        if (medicine.taken) {
+
+            takenHTML = `
+
+                <div
+                    class="taken-area"
+                    onclick="takeMedicine('${medicine._id}')">
+
+                    <div class="taken-checkbox checked">
+                        ✓
+                    </div>
+
+                    <span class="taken-label checked">
+                        Taken
+                    </span>
+
+                </div>
+
+            `;
+
+        } else {
+
+            takenHTML = `
+
+                <div
+                    class="taken-area"
+                    onclick="takeMedicine('${medicine._id}')">
+
+                    <div class="taken-checkbox">
+                    </div>
+
+                    <span class="taken-label">
+                        Taken
+                    </span>
+
+                </div>
+
+            `;
+
+        }
+
+
+        // ================= MEDICINE CARD =================
 
         list.innerHTML += `
 
@@ -107,14 +203,21 @@ async function loadMedicines() {
 
                 <div class="medicine-info">
 
-                    <h4>💊 ${medicine.medicineName}</h4>
+                    <h4>
+                        💊 ${medicine.medicineName}
+                    </h4>
 
-                    <p>🕒 ${formattedTime}</p>
+                    <p>
+                        🕒 ${formattedTime}
+                    </p>
 
                 </div>
 
 
                 <div class="action-buttons">
+
+                    ${takenHTML}
+
 
                     <button
                         type="button"
@@ -156,12 +259,17 @@ function editMedicine(id, name, time) {
 
     editingMedicineId = id;
 
-    document.querySelector('input[name="medicineName"]').value = name;
+    document.querySelector(
+        'input[name="medicineName"]'
+    ).value = name;
 
-    document.querySelector('input[name="medicineTime"]').value = time;
+    document.querySelector(
+        'input[name="medicineTime"]'
+    ).value = time;
 
-    document.getElementById("submitButton").innerText =
-        "Update Medicine";
+    document.getElementById(
+        "submitButton"
+    ).innerText = "Update Medicine";
 
 }
 
@@ -174,106 +282,176 @@ async function deleteMedicine(id) {
         return;
     }
 
-    await fetch("/deleteMedicine/" + id, {
-
-        method: "DELETE"
-
-    });
+    await fetch(
+        "/deleteMedicine/" + id,
+        {
+            method: "DELETE"
+        }
+    );
 
     loadMedicines();
 
 }
 
 
+// ================= MARK AS TAKEN =================
+
+async function takeMedicine(id) {
+
+    const response = await fetch(
+        "/takeMedicine/" + id,
+        {
+            method: "PUT"
+        }
+    );
+
+
+    if (response.ok) {
+
+        loadMedicines();
+
+    } else {
+
+        alert(
+            "Failed to mark medicine as taken."
+        );
+
+    }
+
+}
+
+
 // ================= ADD / UPDATE =================
 
-document.getElementById("medicineForm").addEventListener(
+document.getElementById(
+    "medicineForm"
+).addEventListener(
     "submit",
     async function(event) {
 
         event.preventDefault();
 
+
         const medicineName =
-            document.querySelector('input[name="medicineName"]').value;
+            document.querySelector(
+                'input[name="medicineName"]'
+            ).value;
+
 
         const medicineTime =
-            document.querySelector('input[name="medicineTime"]').value;
+            document.querySelector(
+                'input[name="medicineTime"]'
+            ).value;
 
 
-        // UPDATE EXISTING MEDICINE
+        // ================= UPDATE =================
 
         if (editingMedicineId) {
 
             const response = await fetch(
-                "/updateMedicine/" + editingMedicineId,
+                "/updateMedicine/" +
+                editingMedicineId,
                 {
+
                     method: "PUT",
 
                     headers: {
-                        "Content-Type": "application/json"
+                        "Content-Type":
+                            "application/json"
                     },
 
                     body: JSON.stringify({
-                        medicineName: medicineName,
-                        medicineTime: medicineTime
+
+                        medicineName:
+                            medicineName,
+
+                        medicineTime:
+                            medicineTime
+
                     })
+
                 }
             );
 
 
             if (response.ok) {
 
-                alert("Medicine Updated Successfully!");
+                alert(
+                    "Medicine Updated Successfully!"
+                );
+
 
                 editingMedicineId = null;
 
-                document.getElementById("submitButton").innerText =
+
+                document.getElementById(
+                    "submitButton"
+                ).innerText =
                     "+ Add Medicine";
 
-                document.getElementById("medicineForm").reset();
+
+                document.getElementById(
+                    "medicineForm"
+                ).reset();
+
 
                 loadMedicines();
 
             } else {
 
-                alert("Failed to update medicine.");
+                alert(
+                    "Failed to update medicine."
+                );
 
             }
 
         }
 
 
-        // ADD NEW MEDICINE
+        // ================= ADD =================
 
         else {
 
             const response = await fetch(
                 "/addMedicine",
                 {
+
                     method: "POST",
 
                     headers: {
+
                         "Content-Type":
                             "application/x-www-form-urlencoded"
+
                     },
 
                     body: new URLSearchParams({
-                        medicineName: medicineName,
-                        medicineTime: medicineTime
+
+                        medicineName:
+                            medicineName,
+
+                        medicineTime:
+                            medicineTime
+
                     })
+
                 }
             );
 
 
             if (response.ok) {
 
-                document.getElementById("medicineForm").reset();
+                document.getElementById(
+                    "medicineForm"
+                ).reset();
 
                 loadMedicines();
 
             } else {
 
-                alert("Failed to add medicine.");
+                alert(
+                    "Failed to add medicine."
+                );
 
             }
 

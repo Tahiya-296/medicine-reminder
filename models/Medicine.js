@@ -10,6 +10,11 @@ const medicineSchema = new mongoose.Schema({
     medicineTime: {
         type: String,
         required: true
+    },
+
+    taken: {
+        type: Boolean,
+        default: false
     }
 
 });

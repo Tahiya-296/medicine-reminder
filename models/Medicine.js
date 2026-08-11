@@ -12,9 +12,24 @@ const medicineSchema = new mongoose.Schema({
         required: true
     },
 
+    startDate: {
+        type: String,
+        required: true
+    },
+
+    endDate: {
+        type: String,
+        required: true
+    },
+
     taken: {
         type: Boolean,
         default: false
+    },
+
+    lastTakenDate: {
+        type: String,
+        default: ""
     }
 
 });

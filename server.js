@@ -96,8 +96,15 @@ app.post("/addMedicine", async (req, res) => {
     try {
 
         const medicine = new Medicine({
+
             medicineName: req.body.medicineName,
-            medicineTime: req.body.medicineTime
+
+            medicineTime: req.body.medicineTime,
+
+            startDate: req.body.startDate,
+
+            endDate: req.body.endDate
+
         });
 
         await medicine.save();
@@ -161,7 +168,12 @@ app.put("/updateMedicine/:id", async (req, res) => {
             req.params.id,
             {
                 medicineName: req.body.medicineName,
-                medicineTime: req.body.medicineTime
+
+                medicineTime: req.body.medicineTime,
+
+                startDate: req.body.startDate,
+
+                endDate: req.body.endDate
             }
         );
 
@@ -182,10 +194,15 @@ app.put("/takeMedicine/:id", async (req, res) => {
 
     try {
 
+        const today = new Date()
+            .toISOString()
+            .split("T")[0];
+
         await Medicine.findByIdAndUpdate(
             req.params.id,
             {
-                taken: true
+                taken: true,
+                lastTakenDate: today
             }
         );
 
@@ -194,7 +211,9 @@ app.put("/takeMedicine/:id", async (req, res) => {
     } catch (error) {
 
         console.log(error);
-        res.status(500).send("Failed to mark medicine as taken");
+        res.status(500).send(
+            "Failed to mark medicine as taken"
+        );
 
     }
 

@@ -194,23 +194,37 @@ app.put("/takeMedicine/:id", async (req, res) => {
 
     try {
 
-        const today = new Date()
-            .toISOString()
-            .split("T")[0];
+        const today = new Date();
+
+        const year = today.getFullYear();
+
+        const month = String(
+            today.getMonth() + 1
+        ).padStart(2, "0");
+
+        const day = String(
+            today.getDate()
+        ).padStart(2, "0");
+
+        const todayDate =
+            `${year}-${month}-${day}`;
+
 
         await Medicine.findByIdAndUpdate(
             req.params.id,
             {
                 taken: true,
-                lastTakenDate: today
+                lastTakenDate: todayDate
             }
         );
+
 
         res.send("Medicine marked as taken");
 
     } catch (error) {
 
         console.log(error);
+
         res.status(500).send(
             "Failed to mark medicine as taken"
         );

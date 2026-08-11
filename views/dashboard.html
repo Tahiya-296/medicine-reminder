@@ -48,6 +48,19 @@
             font-weight: bold;
         }
 
+        /* ================= REMINDER ================= */
+
+        .reminder-box {
+            display: none;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #664d03;
+            font-weight: bold;
+        }
+
     </style>
 
 </head>
@@ -61,6 +74,13 @@
 
     <h2>Manage Your Medicines</h2>
 
+
+    <!-- ================= REMINDER BOX ================= -->
+
+    <div id="reminderBox" class="reminder-box"></div>
+
+
+    <!-- ================= MEDICINE FORM ================= -->
 
     <form id="medicineForm">
 
@@ -101,8 +121,12 @@
         >
 
 
-        <button type="submit" id="submitButton">
+        <button
+            type="submit"
+            id="submitButton">
+
             + Add Medicine
+
         </button>
 
     </form>
@@ -111,10 +135,14 @@
     <hr>
 
 
+    <!-- ================= MEDICINE LIST ================= -->
+
     <h3>Your Medicines</h3>
 
     <div id="medicineList"></div>
 
+
+    <!-- ================= LOGOUT ================= -->
 
     <button
         class="logout-btn"
@@ -130,165 +158,460 @@
 
 <script>
 
+
+// ======================================================
+// GLOBAL VARIABLES
+// ======================================================
+
 let editingMedicineId = null;
 
 
-// ================= LOAD MEDICINES =================
+// This remembers which medicines already showed
+// a reminder during the current dashboard session.
 
-async function loadMedicines() {
-
-    const response = await fetch("/getMedicines");
-
-    const medicines = await response.json();
-
-    const list = document.getElementById("medicineList");
-
-    list.innerHTML = "";
+let remindersShown = new Set();
 
 
-    medicines.forEach((medicine) => {
+// ======================================================
+// GET TODAY'S DATE
+// ======================================================
 
-        let time = medicine.medicineTime;
+function getTodayDate() {
 
-        let [hour, minute] = time.split(":");
+    const today = new Date();
 
-        hour = parseInt(hour);
+    const year =
+        today.getFullYear();
 
-        let period = "AM";
+    const month =
+        String(
+            today.getMonth() + 1
+        ).padStart(2, "0");
 
+    const day =
+        String(
+            today.getDate()
+        ).padStart(2, "0");
 
-        if (hour >= 12) {
-            period = "PM";
-        }
-
-
-        if (hour > 12) {
-            hour -= 12;
-        }
-
-
-        if (hour === 0) {
-            hour = 12;
-        }
-
-
-        const formattedTime =
-            `${hour}:${minute} ${period}`;
-
-
-        // ================= TAKEN CHECKBOX =================
-
-        let takenHTML;
-
-
-        if (medicine.taken) {
-
-            takenHTML = `
-
-                <div
-                    class="taken-area"
-                    onclick="takeMedicine('${medicine._id}')">
-
-                    <div class="taken-checkbox checked">
-                        ✓
-                    </div>
-
-                    <span class="taken-label checked">
-                        Taken
-                    </span>
-
-                </div>
-
-            `;
-
-        } else {
-
-            takenHTML = `
-
-                <div
-                    class="taken-area"
-                    onclick="takeMedicine('${medicine._id}')">
-
-                    <div class="taken-checkbox">
-                    </div>
-
-                    <span class="taken-label">
-                        Taken
-                    </span>
-
-                </div>
-
-            `;
-
-        }
-
-
-        // ================= MEDICINE CARD =================
-
-        list.innerHTML += `
-
-            <div class="medicine-card">
-
-                <div class="medicine-info">
-
-                    <h4>
-                        💊 ${medicine.medicineName}
-                    </h4>
-
-                    <p>
-                        🕒 ${formattedTime}
-                    </p>
-
-                    <p>
-                        📅 ${medicine.startDate}
-                        → ${medicine.endDate}
-                    </p>
-
-                </div>
-
-
-                <div class="action-buttons">
-
-                    ${takenHTML}
-
-
-                    <button
-                        type="button"
-                        class="edit-btn"
-                        onclick="editMedicine(
-                            '${medicine._id}',
-                            '${medicine.medicineName}',
-                            '${medicine.medicineTime}',
-                            '${medicine.startDate}',
-                            '${medicine.endDate}'
-                        )">
-
-                        Edit
-
-                    </button>
-
-
-                    <button
-                        type="button"
-                        class="delete-btn"
-                        onclick="deleteMedicine('${medicine._id}')">
-
-                        Delete
-
-                    </button>
-
-                </div>
-
-            </div>
-
-        `;
-
-    });
+    return `${year}-${month}-${day}`;
 
 }
 
 
-// ================= EDIT MEDICINE =================
+// ======================================================
+// LOAD MEDICINES
+// ======================================================
+
+async function loadMedicines() {
+
+    try {
+
+        const response =
+            await fetch("/getMedicines");
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                "Failed to load medicines"
+            );
+
+        }
+
+
+        const medicines =
+            await response.json();
+
+
+        const list =
+            document.getElementById(
+                "medicineList"
+            );
+
+
+        list.innerHTML = "";
+
+
+        // No medicines
+
+        if (medicines.length === 0) {
+
+            list.innerHTML = `
+                <p>
+                    No medicines added yet.
+                </p>
+            `;
+
+            return;
+
+        }
+
+
+        medicines.forEach(
+            (medicine) => {
+
+
+                // ==================================================
+                // DAILY TAKEN CHECK
+                // ==================================================
+
+                const today =
+                    getTodayDate();
+
+
+                const isTakenToday =
+                    medicine.taken &&
+                    medicine.lastTakenDate === today;
+
+
+                // ==================================================
+                // TIME FORMAT
+                // ==================================================
+
+                let time =
+                    medicine.medicineTime;
+
+
+                let [
+                    hour,
+                    minute
+                ] =
+                    time.split(":");
+
+
+                hour =
+                    parseInt(hour);
+
+
+                let period = "AM";
+
+
+                if (hour >= 12) {
+
+                    period = "PM";
+
+                }
+
+
+                if (hour > 12) {
+
+                    hour -= 12;
+
+                }
+
+
+                if (hour === 0) {
+
+                    hour = 12;
+
+                }
+
+
+                const formattedTime =
+                    `${hour}:${minute} ${period}`;
+
+
+                // ==================================================
+                // TAKEN CHECKBOX
+                // ==================================================
+
+                let takenHTML;
+
+
+                if (isTakenToday) {
+
+                    takenHTML = `
+
+                        <div
+                            class="taken-area"
+                            onclick="takeMedicine('${medicine._id}')">
+
+                            <div
+                                class="taken-checkbox checked">
+
+                                ✓
+
+                            </div>
+
+                            <span
+                                class="taken-label checked">
+
+                                Taken
+
+                            </span>
+
+                        </div>
+
+                    `;
+
+                } else {
+
+                    takenHTML = `
+
+                        <div
+                            class="taken-area"
+                            onclick="takeMedicine('${medicine._id}')">
+
+                            <div
+                                class="taken-checkbox">
+                            </div>
+
+                            <span
+                                class="taken-label">
+
+                                Taken
+
+                            </span>
+
+                        </div>
+
+                    `;
+
+                }
+
+
+                // ==================================================
+                // MEDICINE CARD
+                // ==================================================
+
+                list.innerHTML += `
+
+                    <div class="medicine-card">
+
+                        <div class="medicine-info">
+
+                            <h4>
+                                💊 ${medicine.medicineName}
+                            </h4>
+
+                            <p>
+                                🕒 ${formattedTime}
+                            </p>
+
+                            <p>
+                                📅 ${medicine.startDate}
+                                → ${medicine.endDate}
+                            </p>
+
+                        </div>
+
+
+                        <div class="action-buttons">
+
+                            ${takenHTML}
+
+
+                            <button
+                                type="button"
+                                class="edit-btn"
+                                onclick="editMedicine(
+                                    '${medicine._id}',
+                                    '${medicine.medicineName}',
+                                    '${medicine.medicineTime}',
+                                    '${medicine.startDate}',
+                                    '${medicine.endDate}'
+                                )">
+
+                                Edit
+
+                            </button>
+
+
+                            <button
+                                type="button"
+                                class="delete-btn"
+                                onclick="deleteMedicine(
+                                    '${medicine._id}'
+                                )">
+
+                                Delete
+
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                `;
+
+            }
+        );
+
+
+    } catch (error) {
+
+        console.log(
+            "Error loading medicines:",
+            error
+        );
+
+    }
+
+}
+
+
+// ======================================================
+// CHECK REMINDERS
+// ======================================================
+
+async function checkReminders() {
+
+    try {
+
+        const response =
+            await fetch("/getMedicines");
+
+
+        if (!response.ok) {
+
+            return;
+
+        }
+
+
+        const medicines =
+            await response.json();
+
+
+        const now =
+            new Date();
+
+
+        const today =
+            getTodayDate();
+
+
+        const currentHour =
+            now.getHours();
+
+
+        const currentMinute =
+            now.getMinutes();
+
+
+        const currentMinutes =
+            currentHour * 60 +
+            currentMinute;
+
+
+        medicines.forEach(
+            (medicine) => {
+
+
+                // ==================================================
+                // CHECK MEDICINE DATE RANGE
+                // ==================================================
+
+                if (
+                    today < medicine.startDate ||
+                    today > medicine.endDate
+                ) {
+
+                    return;
+
+                }
+
+
+                // ==================================================
+                // CHECK IF ALREADY TAKEN TODAY
+                // ==================================================
+
+                if (
+                    medicine.taken &&
+                    medicine.lastTakenDate === today
+                ) {
+
+                    return;
+
+                }
+
+
+                // ==================================================
+                // MEDICINE TIME
+                // ==================================================
+
+                const [
+                    medicineHour,
+                    medicineMinute
+                ] =
+                    medicine.medicineTime
+                        .split(":")
+                        .map(Number);
+
+
+                const scheduledMinutes =
+                    medicineHour * 60 +
+                    medicineMinute;
+
+
+                // ==================================================
+                // CHECK WHETHER TIME HAS ARRIVED
+                // ==================================================
+
+                if (
+                    currentMinutes >=
+                    scheduledMinutes
+                ) {
+
+
+                    // ==================================================
+                    // PREVENT REPEATED POPUPS
+                    // ==================================================
+
+                    const reminderId =
+                        medicine._id +
+                        "-" +
+                        today;
+
+
+                    if (
+                        remindersShown.has(
+                            reminderId
+                        )
+                    ) {
+
+                        return;
+
+                    }
+
+
+                    remindersShown.add(
+                        reminderId
+                    );
+
+
+                    // ==================================================
+                    // SHOW REMINDER
+                    // ==================================================
+
+                    alert(
+                        "💊 Medicine Reminder!\n\n" +
+                        "It is time to take " +
+                        medicine.medicineName +
+                        "."
+                    );
+
+                }
+
+            }
+        );
+
+
+    } catch (error) {
+
+        console.log(
+            "Reminder error:",
+            error
+        );
+
+    }
+
+}
+
+
+// ======================================================
+// EDIT MEDICINE
+// ======================================================
 
 function editMedicine(
     id,
@@ -323,52 +646,97 @@ function editMedicine(
 
     document.getElementById(
         "submitButton"
-    ).innerText = "Update Medicine";
+    ).innerText =
+        "Update Medicine";
 
 }
 
 
-// ================= DELETE MEDICINE =================
+// ======================================================
+// DELETE MEDICINE
+// ======================================================
 
 async function deleteMedicine(id) {
 
-    if (!confirm("Delete this medicine?")) {
+    if (
+        !confirm(
+            "Delete this medicine?"
+        )
+    ) {
 
         return;
 
     }
 
 
-    await fetch(
-        "/deleteMedicine/" + id,
-        {
-            method: "DELETE"
+    try {
+
+        const response =
+            await fetch(
+                "/deleteMedicine/" + id,
+                {
+                    method: "DELETE"
+                }
+            );
+
+
+        if (response.ok) {
+
+            loadMedicines();
+
+        } else {
+
+            alert(
+                "Failed to delete medicine."
+            );
+
         }
-    );
 
+    } catch (error) {
 
-    loadMedicines();
+        console.log(error);
+
+        alert(
+            "Failed to delete medicine."
+        );
+
+    }
 
 }
 
 
-// ================= MARK AS TAKEN =================
+// ======================================================
+// MARK MEDICINE AS TAKEN
+// ======================================================
 
 async function takeMedicine(id) {
 
-    const response = await fetch(
-        "/takeMedicine/" + id,
-        {
-            method: "PUT"
+    try {
+
+        const response =
+            await fetch(
+                "/takeMedicine/" + id,
+                {
+                    method: "PUT"
+                }
+            );
+
+
+        if (response.ok) {
+
+            loadMedicines();
+
+        } else {
+
+            alert(
+                "Failed to mark medicine as taken."
+            );
+
         }
-    );
 
+    } catch (error) {
 
-    if (response.ok) {
-
-        loadMedicines();
-
-    } else {
+        console.log(error);
 
         alert(
             "Failed to mark medicine as taken."
@@ -379,7 +747,9 @@ async function takeMedicine(id) {
 }
 
 
-// ================= ADD / UPDATE =================
+// ======================================================
+// ADD / UPDATE MEDICINE
+// ======================================================
 
 document.getElementById(
     "medicineForm"
@@ -389,6 +759,10 @@ document.getElementById(
 
         event.preventDefault();
 
+
+        // ==================================================
+        // GET FORM VALUES
+        // ==================================================
 
         const medicineName =
             document.querySelector(
@@ -414,66 +788,86 @@ document.getElementById(
             ).value;
 
 
-        // ================= UPDATE =================
+        // ==================================================
+        // UPDATE EXISTING MEDICINE
+        // ==================================================
 
         if (editingMedicineId) {
 
-            const response = await fetch(
-                "/updateMedicine/" +
-                editingMedicineId,
-                {
+            try {
 
-                    method: "PUT",
+                const response =
+                    await fetch(
+                        "/updateMedicine/" +
+                        editingMedicineId,
+                        {
 
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
+                            method: "PUT",
 
-                    body: JSON.stringify({
+                            headers: {
 
-                        medicineName:
-                            medicineName,
+                                "Content-Type":
+                                    "application/json"
 
-                        medicineTime:
-                            medicineTime,
+                            },
 
-                        startDate:
-                            startDate,
+                            body:
+                                JSON.stringify({
 
-                        endDate:
-                            endDate
+                                    medicineName:
+                                        medicineName,
 
-                    })
+                                    medicineTime:
+                                        medicineTime,
+
+                                    startDate:
+                                        startDate,
+
+                                    endDate:
+                                        endDate
+
+                                })
+
+                        }
+                    );
+
+
+                if (response.ok) {
+
+                    alert(
+                        "Medicine Updated Successfully!"
+                    );
+
+
+                    editingMedicineId =
+                        null;
+
+
+                    document.getElementById(
+                        "submitButton"
+                    ).innerText =
+                        "+ Add Medicine";
+
+
+                    document.getElementById(
+                        "medicineForm"
+                    ).reset();
+
+
+                    loadMedicines();
+
+                } else {
+
+                    alert(
+                        "Failed to update medicine."
+                    );
 
                 }
-            );
 
 
-            if (response.ok) {
+            } catch (error) {
 
-                alert(
-                    "Medicine Updated Successfully!"
-                );
-
-
-                editingMedicineId = null;
-
-
-                document.getElementById(
-                    "submitButton"
-                ).innerText =
-                    "+ Add Medicine";
-
-
-                document.getElementById(
-                    "medicineForm"
-                ).reset();
-
-
-                loadMedicines();
-
-            } else {
+                console.log(error);
 
                 alert(
                     "Failed to update medicine."
@@ -481,56 +875,74 @@ document.getElementById(
 
             }
 
+
         }
 
 
-        // ================= ADD =================
+        // ==================================================
+        // ADD NEW MEDICINE
+        // ==================================================
 
         else {
 
-            const response = await fetch(
-                "/addMedicine",
-                {
+            try {
 
-                    method: "POST",
+                const response =
+                    await fetch(
+                        "/addMedicine",
+                        {
 
-                    headers: {
+                            method: "POST",
 
-                        "Content-Type":
-                            "application/x-www-form-urlencoded"
+                            headers: {
 
-                    },
+                                "Content-Type":
+                                    "application/x-www-form-urlencoded"
 
-                    body: new URLSearchParams({
+                            },
 
-                        medicineName:
-                            medicineName,
+                            body:
+                                new URLSearchParams({
 
-                        medicineTime:
-                            medicineTime,
+                                    medicineName:
+                                        medicineName,
 
-                        startDate:
-                            startDate,
+                                    medicineTime:
+                                        medicineTime,
 
-                        endDate:
-                            endDate
+                                    startDate:
+                                        startDate,
 
-                    })
+                                    endDate:
+                                        endDate
+
+                                })
+
+                        }
+                    );
+
+
+                if (response.ok) {
+
+                    document.getElementById(
+                        "medicineForm"
+                    ).reset();
+
+
+                    loadMedicines();
+
+                } else {
+
+                    alert(
+                        "Failed to add medicine."
+                    );
 
                 }
-            );
 
 
-            if (response.ok) {
+            } catch (error) {
 
-                document.getElementById(
-                    "medicineForm"
-                ).reset();
-
-
-                loadMedicines();
-
-            } else {
+                console.log(error);
 
                 alert(
                     "Failed to add medicine."
@@ -544,9 +956,29 @@ document.getElementById(
 );
 
 
-// ================= LOAD ON PAGE OPEN =================
+// ======================================================
+// INITIAL LOAD
+// ======================================================
 
 loadMedicines();
+
+
+// ======================================================
+// CHECK REMINDERS IMMEDIATELY
+// ======================================================
+
+checkReminders();
+
+
+// ======================================================
+// CHECK REMINDERS EVERY 30 SECONDS
+// ======================================================
+
+setInterval(
+    checkReminders,
+    30000
+);
+
 
 </script>
 

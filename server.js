@@ -3,6 +3,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const path = require("path");
 const session = require("express-session");
+const MongoStore = require("connect-mongo").default;
 
 const User = require("./models/User");
 const Medicine = require("./models/Medicine");
@@ -15,7 +16,10 @@ app.use(express.json());
 app.use(session({
     secret: "medicine-reminder-secret",
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false,
+    store: MongoStore.create({
+        mongoUrl: process.env.MONGO_URI
+    })
 }));
 app.use(express.static("public"));
 app.use(express.static(path.join(__dirname, "views")));

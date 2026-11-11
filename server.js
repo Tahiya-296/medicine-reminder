@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 const path = require("path");
 const session = require("express-session");
 const MongoStore = require("connect-mongo").default;
@@ -51,6 +52,82 @@ function requireAuth(unauthorizedHandler) {
 const requirePageAuth = requireAuth((req, res) => res.redirect("/login"));
 const requireApiAuth = requireAuth((req, res) => res.status(401).send("Please login first."));
 
+function requireCsrfToken(req, res, next) {
+    const expectedToken = req.session.csrfToken;
+    const providedToken = req.get("x-csrf-token");
+
+    if (typeof expectedToken !== "string" || typeof providedToken !== "string") {
+        return res.status(403).json({ error: "Invalid or missing CSRF token." });
+    }
+
+    const expectedBuffer = Buffer.from(expectedToken);
+    const providedBuffer = Buffer.from(providedToken);
+
+    if (expectedBuffer.length !== providedBuffer.length || !crypto.timingSafeEqual(expectedBuffer, providedBuffer)) {
+        return res.status(403).json({ error: "Invalid or missing CSRF token." });
+    }
+
+    next();
+}
+
+function validateMedicineInput(body) {
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+        return { error: "Request body must contain medicine details." };
+    }
+
+    if (typeof body.medicineName !== "string" || body.medicineName.trim().length === 0) {
+        return { error: "Medicine name is required." };
+    }
+
+    const medicineName = body.medicineName.trim();
+    if (medicineName.length > 120) {
+        return { error: "Medicine name must be 120 characters or fewer." };
+    }
+
+    if (typeof body.medicineTime !== "string" || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(body.medicineTime)) {
+        return { error: "Medicine time must use the 24-hour HH:MM format." };
+    }
+
+    const isValidDate = (value) => {
+        if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+            return false;
+        }
+
+        const parsedDate = new Date(`${value}T00:00:00.000Z`);
+        return !Number.isNaN(parsedDate.getTime()) && parsedDate.toISOString().slice(0, 10) === value;
+    };
+
+    if (!isValidDate(body.startDate)) {
+        return { error: "Start date must be a valid date in YYYY-MM-DD format." };
+    }
+
+    if (!isValidDate(body.endDate)) {
+        return { error: "End date must be a valid date in YYYY-MM-DD format." };
+    }
+
+    if (body.endDate < body.startDate) {
+        return { error: "End date cannot be earlier than start date." };
+    }
+
+    return {
+        value: {
+            medicineName,
+            medicineTime: body.medicineTime,
+            startDate: body.startDate,
+            endDate: body.endDate
+        }
+    };
+}
+
+function validateMedicineId(id, res) {
+    if (!mongoose.isObjectIdOrHexString(id)) {
+        res.status(400).json({ error: "Invalid medicine ID." });
+        return false;
+    }
+
+    return true;
+}
+
 // ================= PAGES =================
 
 app.get("/", (req, res) => {
@@ -67,6 +144,20 @@ app.get("/login", (req, res) => {
 
 app.get("/dashboard", requirePageAuth, (req, res) => {
     res.sendFile(path.join(__dirname, "views", "dashboard.html"));
+});
+
+app.get("/csrf-token", requireApiAuth, (req, res) => {
+    if (!req.session.csrfToken) {
+        req.session.csrfToken = crypto.randomBytes(32).toString("hex");
+    }
+
+    req.session.save((error) => {
+        if (error) {
+            return res.status(500).json({ error: "Unable to prepare a secure request token." });
+        }
+
+        return res.json({ csrfToken: req.session.csrfToken });
+    });
 });
 
 // ================= REGISTER =================
@@ -145,7 +236,7 @@ app.post("/login", async (req, res) => {
     }
 });
 
-app.post("/logout", (req, res) => {
+app.post("/logout", requireApiAuth, requireCsrfToken, (req, res) => {
     if (!req.session) {
         res.clearCookie("connect.sid", sessionCookieOptions);
         return res.redirect("/login");
@@ -164,29 +255,24 @@ app.post("/logout", (req, res) => {
 
 // ================= ADD MEDICINE =================
 
-app.post("/addMedicine", requireApiAuth, async (req, res) => {
+app.post("/addMedicine", requireApiAuth, requireCsrfToken, async (req, res) => {
     try {
+        const validation = validateMedicineInput(req.body);
+        if (validation.error) {
+            return res.status(400).json({ error: validation.error });
+        }
 
         const medicine = new Medicine({
-
             userId: req.session.userId,
-
-            medicineName: req.body.medicineName,
-            medicineTime: req.body.medicineTime,
-            startDate: req.body.startDate,
-            endDate: req.body.endDate
-
+            ...validation.value
         });
 
         await medicine.save();
 
-        res.redirect("/dashboard");
+        res.status(201).json({ message: "Medicine added." });
 
     } catch (error) {
-
-        console.log(error);
-        res.send("Failed to add medicine.");
-
+        res.status(500).json({ error: "Failed to add medicine." });
     }
 });
 
@@ -211,8 +297,11 @@ app.get("/getMedicines", requireApiAuth, async (req, res) => {
 
 // ================= DELETE MEDICINE =================
 
-app.delete("/deleteMedicine/:id", requireApiAuth, async (req, res) => {
+app.delete("/deleteMedicine/:id", requireApiAuth, requireCsrfToken, async (req, res) => {
     try {
+        if (!validateMedicineId(req.params.id, res)) {
+            return;
+        }
 
         const medicine = await Medicine.findOneAndDelete({
             _id: req.params.id,
@@ -235,22 +324,26 @@ app.delete("/deleteMedicine/:id", requireApiAuth, async (req, res) => {
 
 // ================= UPDATE MEDICINE =================
 
-app.put("/updateMedicine/:id", requireApiAuth, async (req, res) => {
+app.put("/updateMedicine/:id", requireApiAuth, requireCsrfToken, async (req, res) => {
     try {
+        if (!validateMedicineId(req.params.id, res)) {
+            return;
+        }
+
+        const validation = validateMedicineInput(req.body);
+        if (validation.error) {
+            return res.status(400).json({ error: validation.error });
+        }
 
         const medicine = await Medicine.findOneAndUpdate(
             {
                 _id: req.params.id,
                 userId: req.session.userId
             },
+            validation.value,
             {
-                medicineName: req.body.medicineName,
-                medicineTime: req.body.medicineTime,
-                startDate: req.body.startDate,
-                endDate: req.body.endDate
-            },
-            {
-                new: true
+                new: true,
+                runValidators: true
             }
         );
 
@@ -270,8 +363,11 @@ app.put("/updateMedicine/:id", requireApiAuth, async (req, res) => {
 
 // ================= MARK MEDICINE AS TAKEN =================
 
-app.put("/takeMedicine/:id", requireApiAuth, async (req, res) => {
+app.put("/takeMedicine/:id", requireApiAuth, requireCsrfToken, async (req, res) => {
     try {
+        if (!validateMedicineId(req.params.id, res)) {
+            return;
+        }
 
         const today = new Date();
 

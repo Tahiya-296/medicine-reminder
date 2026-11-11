@@ -144,7 +144,7 @@
 
     <!-- ================= LOGOUT ================= -->
 
-    <form action="/logout" method="POST">
+    <form id="logoutForm" action="/logout" method="POST">
         <button class="logout-btn" type="submit">
             Logout
         </button>
@@ -168,6 +168,26 @@ let editingMedicineId = null;
 // a reminder during the current dashboard session.
 
 let remindersShown = new Set();
+let csrfToken = null;
+
+async function getCsrfToken() {
+    if (csrfToken) {
+        return csrfToken;
+    }
+
+    const response = await fetch("/csrf-token");
+    if (!response.ok) {
+        throw new Error("Unable to prepare a secure request.");
+    }
+
+    const result = await response.json();
+    if (typeof result.csrfToken !== "string") {
+        throw new Error("Unable to prepare a secure request.");
+    }
+
+    csrfToken = result.csrfToken;
+    return csrfToken;
+}
 
 
 // ======================================================
@@ -227,18 +247,15 @@ async function loadMedicines() {
             );
 
 
-        list.innerHTML = "";
+        list.replaceChildren();
 
 
         // No medicines
 
         if (medicines.length === 0) {
-
-            list.innerHTML = `
-                <p>
-                    No medicines added yet.
-                </p>
-            `;
+            const emptyMessage = document.createElement("p");
+            emptyMessage.textContent = "No medicines added yet.";
+            list.appendChild(emptyMessage);
 
             return;
 
@@ -266,171 +283,80 @@ async function loadMedicines() {
                 // TIME FORMAT
                 // ==================================================
 
-                let time =
-                    medicine.medicineTime;
-
-
-                let [
-                    hour,
-                    minute
-                ] =
-                    time.split(":");
-
-
-                hour =
-                    parseInt(hour);
-
-
-                let period = "AM";
-
-
-                if (hour >= 12) {
-
-                    period = "PM";
-
-                }
-
-
-                if (hour > 12) {
-
-                    hour -= 12;
-
-                }
-
-
-                if (hour === 0) {
-
-                    hour = 12;
-
-                }
-
-
-                const formattedTime =
-                    `${hour}:${minute} ${period}`;
-
-
-                // ==================================================
-                // TAKEN CHECKBOX
-                // ==================================================
-
-                let takenHTML;
-
-
-                if (isTakenToday) {
-
-                    takenHTML = `
-
-                        <div
-                            class="taken-area"
-                            onclick="takeMedicine('${medicine._id}')">
-
-                            <div
-                                class="taken-checkbox checked">
-
-                                ✓
-
-                            </div>
-
-                            <span
-                                class="taken-label checked">
-
-                                Taken
-
-                            </span>
-
-                        </div>
-
-                    `;
-
-                } else {
-
-                    takenHTML = `
-
-                        <div
-                            class="taken-area"
-                            onclick="takeMedicine('${medicine._id}')">
-
-                            <div
-                                class="taken-checkbox">
-                            </div>
-
-                            <span
-                                class="taken-label">
-
-                                Taken
-
-                            </span>
-
-                        </div>
-
-                    `;
-
-                }
-
-
-                // ==================================================
-                // MEDICINE CARD
-                // ==================================================
-
-                list.innerHTML += `
-
-                    <div class="medicine-card">
-
-                        <div class="medicine-info">
-
-                            <h4>
-                                💊 ${medicine.medicineName}
-                            </h4>
-
-                            <p>
-                                🕒 ${formattedTime}
-                            </p>
-
-                            <p>
-                                📅 ${medicine.startDate}
-                                → ${medicine.endDate}
-                            </p>
-
-                        </div>
-
-
-                        <div class="action-buttons">
-
-                            ${takenHTML}
-
-
-                            <button
-                                type="button"
-                                class="edit-btn"
-                                onclick="editMedicine(
-                                    '${medicine._id}',
-                                    '${medicine.medicineName}',
-                                    '${medicine.medicineTime}',
-                                    '${medicine.startDate}',
-                                    '${medicine.endDate}'
-                                )">
-
-                                Edit
-
-                            </button>
-
-
-                            <button
-                                type="button"
-                                class="delete-btn"
-                                onclick="deleteMedicine(
-                                    '${medicine._id}'
-                                )">
-
-                                Delete
-
-                            </button>
-
-                        </div>
-
-                    </div>
-
-                `;
+                const [rawHour = "", minute = ""] = String(medicine.medicineTime || "").split(":");
+                let hour = Number.parseInt(rawHour, 10);
+                let period = hour >= 12 ? "PM" : "AM";
+                if (hour > 12) hour -= 12;
+                if (hour === 0) hour = 12;
+                const formattedTime = Number.isNaN(hour) ? "Time unavailable" : `${hour}:${minute} ${period}`;
+
+                const card = document.createElement("div");
+                card.className = "medicine-card";
+
+                const info = document.createElement("div");
+                info.className = "medicine-info";
+
+                const name = document.createElement("h4");
+                name.textContent = `💊 ${medicine.medicineName ?? ""}`;
+                info.appendChild(name);
+
+                const time = document.createElement("p");
+                time.textContent = `🕒 ${formattedTime}`;
+                info.appendChild(time);
+
+                const dates = document.createElement("p");
+                dates.textContent = `📅 ${medicine.startDate ?? ""} → ${medicine.endDate ?? ""}`;
+                info.appendChild(dates);
+                card.appendChild(info);
+
+                const actions = document.createElement("div");
+                actions.className = "action-buttons";
+
+                const takenArea = document.createElement("div");
+                takenArea.className = "taken-area";
+                takenArea.setAttribute("role", "button");
+                takenArea.tabIndex = 0;
+
+                const checkbox = document.createElement("div");
+                checkbox.className = isTakenToday ? "taken-checkbox checked" : "taken-checkbox";
+                checkbox.textContent = isTakenToday ? "✓" : "";
+                takenArea.appendChild(checkbox);
+
+                const takenLabel = document.createElement("span");
+                takenLabel.className = isTakenToday ? "taken-label checked" : "taken-label";
+                takenLabel.textContent = isTakenToday ? "Taken" : "Mark taken";
+                takenArea.appendChild(takenLabel);
+                takenArea.addEventListener("click", () => takeMedicine(medicine._id));
+                takenArea.addEventListener("keydown", (event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        takeMedicine(medicine._id);
+                    }
+                });
+                actions.appendChild(takenArea);
+
+                const editButton = document.createElement("button");
+                editButton.type = "button";
+                editButton.className = "edit-btn";
+                editButton.textContent = "Edit";
+                editButton.addEventListener("click", () => editMedicine(
+                    medicine._id,
+                    medicine.medicineName,
+                    medicine.medicineTime,
+                    medicine.startDate,
+                    medicine.endDate
+                ));
+                actions.appendChild(editButton);
+
+                const deleteButton = document.createElement("button");
+                deleteButton.type = "button";
+                deleteButton.className = "delete-btn";
+                deleteButton.textContent = "Delete";
+                deleteButton.addEventListener("click", () => deleteMedicine(medicine._id));
+                actions.appendChild(deleteButton);
+
+                card.appendChild(actions);
+                list.appendChild(card);
 
             }
         );
@@ -673,7 +599,10 @@ async function deleteMedicine(id) {
             await fetch(
                 "/deleteMedicine/" + id,
                 {
-                    method: "DELETE"
+                    method: "DELETE",
+                    headers: {
+                        "X-CSRF-Token": await getCsrfToken()
+                    }
                 }
             );
 
@@ -715,7 +644,10 @@ async function takeMedicine(id) {
             await fetch(
                 "/takeMedicine/" + id,
                 {
-                    method: "PUT"
+                    method: "PUT",
+                    headers: {
+                        "X-CSRF-Token": await getCsrfToken()
+                    }
                 }
             );
 
@@ -805,7 +737,9 @@ document.getElementById(
                             headers: {
 
                                 "Content-Type":
-                                    "application/json"
+                                    "application/json",
+                                "X-CSRF-Token":
+                                    await getCsrfToken()
 
                             },
 
@@ -895,7 +829,9 @@ document.getElementById(
                             headers: {
 
                                 "Content-Type":
-                                    "application/x-www-form-urlencoded"
+                                    "application/x-www-form-urlencoded",
+                                "X-CSRF-Token":
+                                    await getCsrfToken()
 
                             },
 
@@ -957,6 +893,27 @@ document.getElementById(
 // ======================================================
 // INITIAL LOAD
 // ======================================================
+
+document.getElementById("logoutForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    try {
+        const response = await fetch("/logout", {
+            method: "POST",
+            headers: {
+                "X-CSRF-Token": await getCsrfToken()
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error("Logout failed.");
+        }
+
+        window.location.href = "/login";
+    } catch (error) {
+        alert("Unable to log out. Please try again.");
+    }
+});
 
 loadMedicines();
 

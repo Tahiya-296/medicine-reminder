@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
 
-console.log("User.js loaded");
+const SALT_ROUNDS = 12;
 
 const userSchema = new mongoose.Schema({
     name: {
@@ -20,8 +21,18 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-const User = mongoose.model("User", userSchema);
+userSchema.pre("save", async function hashPassword() {
+    if (!this.isModified("password")) {
+        return;
+    }
 
-console.log("User model connection:", User.db.readyState);
+    this.password = await bcrypt.hash(this.password, SALT_ROUNDS);
+});
+
+userSchema.methods.comparePassword = function comparePassword(candidatePassword) {
+    return bcrypt.compare(candidatePassword, this.password);
+};
+
+const User = mongoose.model("User", userSchema);
 
 module.exports = User;

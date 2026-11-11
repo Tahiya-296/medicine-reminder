@@ -84,7 +84,7 @@ app.post("/login", async (req, res) => {
             return res.send("User not found.");
         }
 
-        if (user.password !== req.body.password) {
+        if (!(await user.comparePassword(req.body.password))) {
             return res.send("Incorrect password.");
         }
 

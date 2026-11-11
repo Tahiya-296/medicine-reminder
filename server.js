@@ -1,4 +1,6 @@
-require("dotenv").config();
+if (require.main === module) {
+    require("dotenv").config();
+}
 const express = require("express");
 const mongoose = require("mongoose");
 const crypto = require("crypto");
@@ -28,14 +30,17 @@ if (process.env.NODE_ENV === "production") {
 // Middleware
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+const sessionStore = MongoStore.create({
+    mongoUrl: process.env.MONGO_URI
+});
+app.locals.sessionStore = sessionStore;
+
 app.use(session({
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: sessionCookieOptions,
-    store: MongoStore.create({
-        mongoUrl: process.env.MONGO_URI
-    })
+    store: sessionStore
 }));
 app.use(express.static("public"));
 
@@ -415,27 +420,21 @@ app.put("/takeMedicine/:id", requireApiAuth, requireCsrfToken, async (req, res) 
     }
 });
 
-// ================= MONGODB =================
+// ================= SERVER STARTUP =================
 
-mongoose.connect(process.env.MONGO_URI)
+if (require.main === module) {
+    mongoose.connect(process.env.MONGO_URI)
+        .then(() => {
+            console.log("MongoDB connected");
 
-.then(() => {
+            app.listen(process.env.PORT || 3000, () => {
+                console.log("Server running on port " + (process.env.PORT || 3000));
+            });
+        })
+        .catch(() => {
+            console.error("Unable to connect to MongoDB. Check the server configuration.");
+            process.exitCode = 1;
+        });
+}
 
-    console.log("MongoDB connected");
-
-    app.listen(process.env.PORT || 3000, () => {
-
-        console.log(
-            "Server running on port " +
-            (process.env.PORT || 3000)
-        );
-
-    });
-
-})
-
-.catch((error) => {
-
-    console.log(error);
-
-});
+module.exports = app;

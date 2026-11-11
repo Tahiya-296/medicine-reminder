@@ -144,13 +144,11 @@
 
     <!-- ================= LOGOUT ================= -->
 
-    <button
-        class="logout-btn"
-        onclick="window.location.href='/login'">
-
-        Logout
-
-    </button>
+    <form action="/logout" method="POST">
+        <button class="logout-btn" type="submit">
+            Logout
+        </button>
+    </form>
 
 </div>
 

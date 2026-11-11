@@ -10,6 +10,11 @@ const Medicine = require("./models/Medicine");
 
 const app = express();
 const sessionSecret = process.env.SESSION_SECRET;
+const sessionCookieOptions = {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production"
+};
 
 if (!sessionSecret) {
     throw new Error("SESSION_SECRET environment variable is required.");
@@ -26,17 +31,25 @@ app.use(session({
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
-    cookie: {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production"
-    },
+    cookie: sessionCookieOptions,
     store: MongoStore.create({
         mongoUrl: process.env.MONGO_URI
     })
 }));
 app.use(express.static("public"));
-app.use(express.static(path.join(__dirname, "views")));
+
+function requireAuth(unauthorizedHandler) {
+    return (req, res, next) => {
+        if (!req.session || !req.session.userId) {
+            return unauthorizedHandler(req, res);
+        }
+
+        next();
+    };
+}
+
+const requirePageAuth = requireAuth((req, res) => res.redirect("/login"));
+const requireApiAuth = requireAuth((req, res) => res.status(401).send("Please login first."));
 
 // ================= PAGES =================
 
@@ -52,7 +65,7 @@ app.get("/login", (req, res) => {
     res.sendFile(path.join(__dirname, "views", "login.html"));
 });
 
-app.get("/dashboard", (req, res) => {
+app.get("/dashboard", requirePageAuth, (req, res) => {
     res.sendFile(path.join(__dirname, "views", "dashboard.html"));
 });
 
@@ -132,14 +145,27 @@ app.post("/login", async (req, res) => {
     }
 });
 
+app.post("/logout", (req, res) => {
+    if (!req.session) {
+        res.clearCookie("connect.sid", sessionCookieOptions);
+        return res.redirect("/login");
+    }
+
+    req.session.destroy((error) => {
+        res.clearCookie("connect.sid", sessionCookieOptions);
+
+        if (error) {
+            return res.status(500).send("Unable to log out. Please try again.");
+        }
+
+        return res.redirect("/login");
+    });
+});
+
 // ================= ADD MEDICINE =================
 
-app.post("/addMedicine", async (req, res) => {
+app.post("/addMedicine", requireApiAuth, async (req, res) => {
     try {
-
-        if (!req.session.userId) {
-            return res.send("Please login first.");
-        }
 
         const medicine = new Medicine({
 
@@ -166,12 +192,8 @@ app.post("/addMedicine", async (req, res) => {
 
 // ================= GET ALL MEDICINES =================
 
-app.get("/getMedicines", async (req, res) => {
+app.get("/getMedicines", requireApiAuth, async (req, res) => {
     try {
-
-        if (!req.session.userId) {
-            return res.status(401).send("Please login first.");
-        }
 
         const medicines = await Medicine.find({
             userId: req.session.userId
@@ -189,12 +211,8 @@ app.get("/getMedicines", async (req, res) => {
 
 // ================= DELETE MEDICINE =================
 
-app.delete("/deleteMedicine/:id", async (req, res) => {
+app.delete("/deleteMedicine/:id", requireApiAuth, async (req, res) => {
     try {
-
-        if (!req.session.userId) {
-            return res.status(401).send("Please login first.");
-        }
 
         const medicine = await Medicine.findOneAndDelete({
             _id: req.params.id,
@@ -217,12 +235,8 @@ app.delete("/deleteMedicine/:id", async (req, res) => {
 
 // ================= UPDATE MEDICINE =================
 
-app.put("/updateMedicine/:id", async (req, res) => {
+app.put("/updateMedicine/:id", requireApiAuth, async (req, res) => {
     try {
-
-        if (!req.session.userId) {
-            return res.status(401).send("Please login first.");
-        }
 
         const medicine = await Medicine.findOneAndUpdate(
             {
@@ -256,12 +270,8 @@ app.put("/updateMedicine/:id", async (req, res) => {
 
 // ================= MARK MEDICINE AS TAKEN =================
 
-app.put("/takeMedicine/:id", async (req, res) => {
+app.put("/takeMedicine/:id", requireApiAuth, async (req, res) => {
     try {
-
-        if (!req.session.userId) {
-            return res.status(401).send("Please login first.");
-        }
 
         const today = new Date();
 

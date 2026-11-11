@@ -41,7 +41,7 @@ app.use(express.static("public"));
 
 function requireAuth(unauthorizedHandler) {
     return (req, res, next) => {
-        if (!req.session || !req.session.userId) {
+        if (!req.session || !mongoose.isObjectIdOrHexString(req.session.userId)) {
             return unauthorizedHandler(req, res);
         }
 

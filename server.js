@@ -9,14 +9,28 @@ const User = require("./models/User");
 const Medicine = require("./models/Medicine");
 
 const app = express();
+const sessionSecret = process.env.SESSION_SECRET;
+
+if (!sessionSecret) {
+    throw new Error("SESSION_SECRET environment variable is required.");
+}
+
+if (process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+}
 
 // Middleware
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(session({
-    secret: "medicine-reminder-secret",
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
+    cookie: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production"
+    },
     store: MongoStore.create({
         mongoUrl: process.env.MONGO_URI
     })
@@ -75,32 +89,46 @@ app.post("/register", async (req, res) => {
 
 app.post("/login", async (req, res) => {
     try {
+        const { email, password } = req.body || {};
 
-        const user = await User.findOne({
-            email: req.body.email
+        if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
+            return res.status(401).send("Invalid email or password.");
+        }
+
+        const user = await User.findOne({ email });
+
+        if (!user || !(await user.comparePassword(password))) {
+            return res.status(401).send("Invalid email or password.");
+        }
+
+        await new Promise((resolve, reject) => {
+            req.session.regenerate((error) => {
+                if (error) {
+                    reject(error);
+                    return;
+                }
+
+                resolve();
+            });
         });
 
-        if (!user) {
-            return res.send("User not found.");
-        }
-
-        if (!(await user.comparePassword(req.body.password))) {
-            return res.send("Incorrect password.");
-        }
-
-        // Remember the logged-in user
         req.session.userId = user._id;
 
-        console.log("Logged in user:", user.email);
-        console.log("User ID:", user._id);
+        await new Promise((resolve, reject) => {
+            req.session.save((error) => {
+                if (error) {
+                    reject(error);
+                    return;
+                }
+
+                resolve();
+            });
+        });
 
         res.redirect("/dashboard");
 
     } catch (error) {
-
-        console.log(error);
-        res.send("Login failed.");
-
+        res.status(500).send("Unable to log in. Please try again.");
     }
 });
 
